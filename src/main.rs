@@ -3,11 +3,16 @@ use std::collections::HashMap;
 
 mod networking;
 mod fileio;
+mod buffered_streams;
 use crate::networking::*;
 use crate::fileio::*;
+use crate::buffered_streams::*;
 
 // cli arg parser
 use clap::{Arg, App};
+
+use std::net::{TcpStream, UdpSocket};
+use std::io::Write;
 
 fn main() {
     let mut app = App::new("Elix")
@@ -33,8 +38,25 @@ fn main() {
         let filename = String::from(matches.value_of("filename").unwrap());
         // read file from io and store as byte vector
         let file:Vec<u8> = read_file_once(filename);
+
+        /*
+        let stream = search_for_peer().unwrap();
+        let discovery_pair = tcp_to_addr(stream);
+        println!("finished peer discovery");
+        let res = send(discovery_pair, &"something".as_bytes().to_vec());
+        */
+        println!("listening for peer responses");
+        listen_for_peer_response(file);
+
     } else if let Some(ref matches) = matches.subcommand_matches("take"){
         let _code = matches.value_of("code").unwrap();
+
+        let stream = search_for_peer().unwrap();
+        let discovery_pair = tcp_to_addr(stream);
+
+        println!("waiting for bytes");
+        let (bytes_length, buffer) = receive(discovery_pair);
+        println!("received {:?} bytes", bytes_length);
     } else {
         app.print_long_help();
     }
@@ -62,3 +84,50 @@ fn benchmark_file_loading() {
         println!("{} took {:.2?}", k, elapsed);
     }
 }
+
+/*
+use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
+use std::thread;
+use std::process;
+
+static MULTI_CAST_ADDR: Ipv4Addr = Ipv4Addr::new(224, 0, 0, 1);
+pub fn listen() {
+  let socket_address: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 9778);
+  let bind_addr = Ipv4Addr::new(0, 0, 0, 0);
+  let socket = UdpSocket::bind(socket_address).unwrap();
+  println!("Listening on: {}", socket.local_addr().unwrap());
+  socket.join_multicast_v4(&MULTI_CAST_ADDR, &bind_addr).unwrap();
+  loop {
+      let mut buf = [0; 120];
+      let (data, origin) = socket.recv_from(&mut buf).unwrap();
+      let buf = &mut buf[..data];
+      let message = String::from_utf8(buf.to_vec()).unwrap();
+      println!("Server got: {} from {}", message, origin);
+  }
+}
+
+pub fn cast() -> Result<(), std::io::Error> {
+  let socket_address: SocketAddrV4 = SocketAddrV4::new(Ipv4Addr::new(0, 0, 0, 0), 0);
+  let socket = UdpSocket::bind(socket_address)?;
+  socket.connect(SocketAddrV4::new(MULTI_CAST_ADDR, 9778))?;
+  // Don't send messages to yourself.
+  // In this case self discovery is for human developers, not machines.
+  socket.set_multicast_loop_v4(false)?;
+  let data = String::from("{\"username\": \"test\"}");
+  loop {
+    println!("Sent");
+    socket.send(data.as_bytes())?;
+    thread::sleep(std::time::Duration::new(2,0));
+  }
+  Ok(())
+}
+
+fn test() {
+    thread::spawn(||{
+        listen();
+    });
+    cast();
+}
+*/
+
+
