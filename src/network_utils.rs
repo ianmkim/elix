@@ -7,6 +7,7 @@ use std::io::Read;
 use std::io::Write;
 
 use crate::bytes_util::decode_buffer_to_usize;
+use log::info;
 
 type AddrPair = (SocketAddr, SocketAddr);
 
@@ -25,12 +26,11 @@ pub fn listen_for_peer_response(file:String) {
     let socket = listener.local_addr().unwrap();
     thread::spawn(move || {
         autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |s| {
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Runtime::new().unwrap();
             match rt.block_on(sender(file.clone(), tcp_to_addr(s.unwrap()))) {
                 Ok(_) => std::process::exit(0),
-                Err(e) => { eprintln!("{:?}", e); std::process::exit(0); }
+                Err(e) => { info!("{:?}", e); std::process::exit(0); }
             }
-            println!("peer discovered");
         }).unwrap();
     });
     loop {}
@@ -42,8 +42,7 @@ pub fn search_for_peer() -> Option<TcpStream> {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let socket = listener.local_addr().unwrap();
     thread::spawn(move || {
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |s| {
-
+        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |_s| {
         }).unwrap();
     });
 
@@ -56,11 +55,11 @@ pub fn search_for_peer() -> Option<TcpStream> {
 
 pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
     let mut stream = TcpStream::connect(addr).expect("Couldn't send the chunk length");
-    stream.write(&chunk_len);
+    stream.write(&chunk_len).unwrap();
     loop {
         match stream.read(&mut [0u8;4]) {
-            Ok(n) => break,
-            Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+            Ok(_) => break,
+            Err(e) => info!("Error while reading chunk len: {:?}", e),
         }
     }
 }
@@ -73,13 +72,13 @@ pub fn receive_chunk_len(addr:SocketAddr) -> usize {
         let mut chunk_len_buf = [0u8;4];
         loop {
             match stream.read(&mut chunk_len_buf) {
-                Ok(n) => break,
-                Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+                Ok(_) => break,
+                Err(e) => info!("Error while reading chunk len: {:?}", e),
             }
         }
         chunk_len = decode_buffer_to_usize(chunk_len_buf.to_vec());
-        println!("Chunk length {}", chunk_len);
-        stream.write(&[0u8; 4]);
+        info!("Chunk length {}", chunk_len);
+        stream.write(&[0u8; 4]).unwrap();
         break
     }
 

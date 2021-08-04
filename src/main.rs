@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-use std::collections::HashMap;
-
 mod networking;
 mod network_utils;
 mod bytes_util;
@@ -14,8 +11,18 @@ use crate::network_utils::{
 
 // cli arg parser
 use clap::{Arg, App};
+use log::info;
+
+use std::io::Write;
 
 fn main() {
+    let start = std::time::Instant::now();
+    env_logger::Builder::from_default_env().format(move |buf, rec| {
+        let t = start.elapsed().as_secs_f32();
+        writeln!(buf, "{:.03} [{}] - {}", t, rec.level(), rec.args())
+    }).init();
+
+
     let mut app = App::new("Elix")
         .version("0.1.0")
         .author("Ian Kim <ian@ianmkim.com>")
@@ -41,12 +48,12 @@ fn main() {
     } else if let Some(ref matches) = matches.subcommand_matches("take"){
         let code = String::from(matches.value_of("code").unwrap());
         let stream = search_for_peer().unwrap();
-        let mut rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
         match rt.block_on(receiver(code, tcp_to_addr(stream))) {
-            Ok(_) => println!("Done."),
-            Err(e) => println!("An Error Ocurred: {}", e),
+            Ok(_) => info!("Done."),
+            Err(e) => info!("An Error Ocurred: {}", e),
         }
     } else {
-        app.print_long_help();
+        app.print_long_help().unwrap();
     }
 }
