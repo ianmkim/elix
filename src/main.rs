@@ -2,7 +2,15 @@
 use std::collections::HashMap;
 
 mod networking;
+mod network_utils;
+mod bytes_util;
+
 use crate::networking::*;
+use crate::network_utils::{
+    tcp_to_addr,
+    listen_for_peer_response,
+    search_for_peer,
+};
 
 // cli arg parser
 use clap::{Arg, App};

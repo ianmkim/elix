@@ -1,61 +1,154 @@
-use std::net::{TcpListener, TcpStream, SocketAddr};
-use std::io::{Read, Write};
+use std::net::{TcpListener,TcpStream, SocketAddr};
+use std::io::{Read, Write, BufRead, BufReader};
+use std::io;
 
 use autodiscover_rs::{self, Method};
 use std::thread;
 use std::thread::JoinHandle;
 
+use tokio::task;
+use tokio::net::TcpStream as AsyncTcpStream;
+use tokio::net::TcpListener as AsyncTcpListener;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::AsyncWrite;
+use futures::future::join_all;
+
+extern crate crc32fast;
+use crc32fast::Hasher;
+use std::io::Cursor;
+use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
+
+use std::{fs, fs::File};
+
+use crate::network_utils::tcp_to_addr;
+use crate::bytes_util::{
+    encode_usize_as_vec, 
+    decode_buffer_to_u32, 
+    decode_buffer_to_usize};
+
+
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
+const CAP:usize = 1024 * 16;
+
+async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, bool)> {
+    let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
+
+    let mut hasher = Hasher::new();
+    hasher.update(bytes.clone().as_mut_slice());
+    let checksum = hasher.finalize();
+
+    let mut id_bytes_vec = encode_usize_as_vec(frag_id);
+    let mut len_bytes_vec = encode_usize_as_vec(bytes.clone().len());
+
+    let mut res_vec = id_bytes_vec;
+    res_vec.append(&mut len_bytes_vec);
+    res_vec.append(&mut bytes.clone());
+
+    stream.write_all(&res_vec.clone()).await?;
+
+    let mut not_corrupted = false;
+    loop {
+        stream.readable().await?;
+        let mut buffer = vec![0u8; 4];
+
+        match stream.try_read(&mut buffer) {
+            Ok(0) => break,
+            Ok(n) => {
+                let received_sum = decode_buffer_to_u32(buffer);
+                println!("Reply and sent equal? {:?}",  checksum == received_sum);
+                if checksum != received_sum {
+                    println!("Mismatch: {:?} | {:?}", checksum, received_sum);
+                } else { not_corrupted = true; }
+            }
+            Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
+                continue;
+            }
+            Err(e) => {
+                return Err(e.into());
+            }
+        }
+    }
+
+    Ok((frag_id, not_corrupted))
+}
 
 pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
     println!("sender got peer");
+    let file = File::open(&filename).unwrap();
+    let mut reader = BufReader::with_capacity(CAP, file);
+    let addr = addrs.1;
+
+    let mut futures = vec![];
+    let mut frag_id = 0 as usize;
+
+    loop {
+        let buffer = reader.fill_buf().unwrap().clone();
+        let length = buffer.clone().len();
+        if length == 0 { break }
+
+        println!("Read {} bytes", length);
+        let fut = task::spawn(send(frag_id, addr.clone(), buffer.to_vec()));
+        frag_id += 1;
+        futures.push(fut);
+        reader.consume(length);
+    }
+
+    let results = join_all(futures).await;
+
     Ok(())
 }
 
 pub async fn receiver(code: String, addrs:AddrPair) -> Result<()>{
-    println!("receiver got peer");
+    let addr = addrs.0;
+    let listener = AsyncTcpListener::bind(&addr).await?;
+
+    let mut futures = vec![];
+    loop {
+        let (mut socket, _) = listener.accept().await?;
+        let fut = tokio::spawn(async move {
+            // first 4 bytes is for id and the other 4 bytes is to indicate length of
+            // the following vector
+            let mut comb_buf = vec![0;1024*16 + 4 + 4];
+            loop {
+                let n = socket
+                    .read(&mut comb_buf)
+                    .await
+                    .expect("failed to read data from socket");
+
+                let id_bytes:Vec<_> = comb_buf.drain(0..4).collect();
+                let id= decode_buffer_to_usize(id_bytes);
+                println!("Fragment ID {}", id);
+
+
+                let length_bytes:Vec<_> = comb_buf.drain(0..4).collect();
+                let length = decode_buffer_to_usize(length_bytes);
+
+                let mut buf:Vec<_> = comb_buf.drain(0..length).collect();
+                println!("Fragment Length {}", buf.len());
+
+                if n == 0 {
+                    return;
+                }
+
+                let mut hasher = Hasher::new();
+                hasher.update(&mut buf);
+                let checksum = hasher.finalize();
+                let mut checksum_bytes = [0u8; 4];
+
+                checksum_bytes.as_mut()
+                    .write_u32::<LittleEndian>(checksum)
+                    .expect("Unable to convert checksum to bytes");
+                socket.write_all(&checksum_bytes)
+                    .await
+                    .expect("Failed to write checksum to socket");
+            }
+        });
+        futures.push(fut);
+    }
     Ok(())
 }
 
 
-/// Given a TcpStream object return a SocketAddr pair denoting local and peer address
-pub fn tcp_to_addr(stream:TcpStream) -> AddrPair {
-    let local = stream.local_addr().unwrap();
-    let peer = stream.peer_addr().unwrap();
-    (local,peer)
-}
 
-pub fn listen_for_peer_response(file:String) {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let socket = listener.local_addr().unwrap();
-    thread::spawn(move || {
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |s| {
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
-            match rt.block_on(sender(file.clone(), tcp_to_addr(s.unwrap()))) {
-                Ok(_) => std::process::exit(0),
-                Err(e) => { eprintln!("{:?}", e); std::process::exit(0); }
-            }
-            println!("peer discovered");
-        }).unwrap();
-    });
-    loop {}
-}
 
-/// Function searches for peers on the network using UDP multicasting
-/// Returns an Option enums of a TcpStream
-pub fn search_for_peer() -> Option<TcpStream> {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let socket = listener.local_addr().unwrap();
-    thread::spawn(move || {
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |s| {
-
-        }).unwrap();
-    });
-
-    let mut incoming = listener.incoming();
-    while let Some(stream) = incoming.next() {
-        return Some(stream.unwrap());
-    }
-    None
-}
