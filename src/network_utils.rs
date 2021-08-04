@@ -3,6 +3,10 @@ use std::net::{TcpListener,TcpStream, SocketAddr};
 
 use std::thread;
 use autodiscover_rs::{self, Method};
+use std::io::Read;
+use std::io::Write;
+
+use crate::bytes_util::decode_buffer_to_usize;
 
 type AddrPair = (SocketAddr, SocketAddr);
 
@@ -49,3 +53,37 @@ pub fn search_for_peer() -> Option<TcpStream> {
     }
     None
 }
+
+pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
+    let mut stream = TcpStream::connect(addr).expect("Couldn't send the chunk length");
+    stream.write(&chunk_len);
+    loop {
+        match stream.read(&mut [0u8;4]) {
+            Ok(n) => break,
+            Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+        }
+    }
+}
+
+pub fn receive_chunk_len(addr:SocketAddr) -> usize {
+    let listener = TcpListener::bind(&addr).unwrap();
+    let mut chunk_len = 0;
+    for stream in listener.incoming() {
+        let mut stream = stream.unwrap();
+        let mut chunk_len_buf = [0u8;4];
+        loop {
+            match stream.read(&mut chunk_len_buf) {
+                Ok(n) => break,
+                Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+            }
+        }
+        chunk_len = decode_buffer_to_usize(chunk_len_buf.to_vec());
+        println!("Chunk length {}", chunk_len);
+        stream.write(&[0u8; 4]);
+        break
+    }
+
+    drop(listener);
+    chunk_len
+}
+

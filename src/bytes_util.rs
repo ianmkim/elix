@@ -1,6 +1,12 @@
 extern crate byteorder;
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::io::Cursor;
+use std::fs::Metadata;
+
+pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> Vec<u8> {
+    let m_len = metadata.len();
+    encode_usize_as_vec((m_len as f32/ capacity as f32).ceil() as usize)
+}
 
 pub fn encode_usize_as_vec(usize_var: usize) -> Vec<u8> {
     let mut usize_bytes = [0u8;4];

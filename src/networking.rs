@@ -20,11 +20,16 @@ use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 
 use std::{fs, fs::File, fs::Metadata};
 
-use crate::network_utils::tcp_to_addr;
+use crate::network_utils::{
+    tcp_to_addr,
+    send_chunk_len,
+    receive_chunk_len,};
+
 use crate::bytes_util::{
     encode_usize_as_vec,
     decode_buffer_to_u32,
-    decode_buffer_to_usize};
+    decode_buffer_to_usize,
+    get_chunk_len,};
 
 use std::sync::{Arc, Mutex};
 
@@ -74,21 +79,7 @@ async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, 
     Ok((frag_id, not_corrupted))
 }
 
-pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> Vec<u8> {
-    let m_len = metadata.len();
-    encode_usize_as_vec((m_len as f32/ capacity as f32).ceil() as usize)
-}
 
-pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
-    let mut stream = TcpStream::connect(addr).expect("Couldn't send the chunk length");
-    stream.write(&chunk_len);
-    loop {
-        match stream.read(&mut [0u8;4]) {
-            Ok(n) => break,
-            Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
-        }
-    }
-}
 
 pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
     let file = File::open(&filename).unwrap();
@@ -161,28 +152,6 @@ async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
         return Ok((id, buf));
     }
 
-}
-
-pub fn receive_chunk_len(addr:SocketAddr) -> usize {
-    let listener = TcpListener::bind(&addr).unwrap();
-    let mut chunk_len = 0;
-    for stream in listener.incoming() {
-        let mut stream = stream.unwrap();
-        let mut chunk_len_buf = [0u8;4];
-        loop {
-            match stream.read(&mut chunk_len_buf) {
-                Ok(n) => break,
-                Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
-            }
-        }
-        chunk_len = decode_buffer_to_usize(chunk_len_buf.to_vec());
-        println!("Chunk length {}", chunk_len);
-        stream.write(&[0u8; 4]);
-        break
-    }
-
-    drop(listener);
-    chunk_len
 }
 
 pub async fn receiver(code: String, addrs:AddrPair) -> Result<()>{
