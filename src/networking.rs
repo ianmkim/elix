@@ -1,4 +1,4 @@
-use std::net::{TcpListener,TcpStream, SocketAddr};
+use std::net::{TcpListener,TcpStream, SocketAddr, Shutdown};
 use std::io::{Read, Write, BufRead, BufReader};
 use std::io;
 
@@ -18,18 +18,21 @@ use crc32fast::Hasher;
 use std::io::Cursor;
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 
-use std::{fs, fs::File};
+use std::{fs, fs::File, fs::Metadata};
 
 use crate::network_utils::tcp_to_addr;
 use crate::bytes_util::{
-    encode_usize_as_vec, 
-    decode_buffer_to_u32, 
+    encode_usize_as_vec,
+    decode_buffer_to_u32,
     decode_buffer_to_usize};
 
+use std::sync::{Arc, Mutex};
 
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
 const CAP:usize = 1024 * 16;
+
+
 
 async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, bool)> {
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
@@ -38,11 +41,8 @@ async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, 
     hasher.update(bytes.clone().as_mut_slice());
     let checksum = hasher.finalize();
 
-    let mut id_bytes_vec = encode_usize_as_vec(frag_id);
-    let mut len_bytes_vec = encode_usize_as_vec(bytes.clone().len());
-
-    let mut res_vec = id_bytes_vec;
-    res_vec.append(&mut len_bytes_vec);
+    let mut res_vec = encode_usize_as_vec(frag_id);
+    res_vec.append(&mut encode_usize_as_vec(bytes.clone().len()));
     res_vec.append(&mut bytes.clone());
 
     stream.write_all(&res_vec.clone()).await?;
@@ -70,17 +70,37 @@ async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, 
         }
     }
 
+    println!("Fragment send completely finished");
     Ok((frag_id, not_corrupted))
 }
 
+pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> Vec<u8> {
+    let m_len = metadata.len();
+    encode_usize_as_vec((m_len as f32/ capacity as f32).ceil() as usize)
+}
+
+pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
+    let mut stream = TcpStream::connect(addr).expect("Couldn't send the chunk length");
+    stream.write(&chunk_len);
+    loop {
+        match stream.read(&mut [0u8;4]) {
+            Ok(n) => break,
+            Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+        }
+    }
+}
+
 pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
-    println!("sender got peer");
     let file = File::open(&filename).unwrap();
+    let meta_data = file.metadata().unwrap();
+
     let mut reader = BufReader::with_capacity(CAP, file);
     let addr = addrs.1;
 
     let mut futures = vec![];
     let mut frag_id = 0 as usize;
+
+    send_chunk_len(get_chunk_len(meta_data, CAP), addr.clone());
 
     loop {
         let buffer = reader.fill_buf().unwrap().clone();
@@ -95,60 +115,100 @@ pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
     }
 
     let results = join_all(futures).await;
+    println!("After join all");
 
     Ok(())
+}
+
+
+async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
+    // first 4 bytes is for id and the other 4 bytes is to indicate length of
+    // the following vector
+    let mut comb_buf = vec![0;1024*16 + 4 + 4];
+    loop {
+        let n = socket
+            .read(&mut comb_buf)
+            .await
+            .expect("failed to read data from socket");
+
+        if n == 0 {
+            return Ok((usize::MAX, [0u8;0].to_vec()));
+        }
+
+        let id_bytes:Vec<_> = comb_buf.drain(0..4).collect();
+        let id= decode_buffer_to_usize(id_bytes);
+        println!("Fragment ID {}", id);
+
+        let length_bytes:Vec<_> = comb_buf.drain(0..4).collect();
+        let length = decode_buffer_to_usize(length_bytes);
+
+        let mut buf:Vec<_> = comb_buf.drain(0..length).collect();
+        println!("Fragment Length {}", buf.len());
+
+        let mut hasher = Hasher::new();
+        hasher.update(&mut buf);
+        let checksum = hasher.finalize();
+        let mut checksum_bytes = [0u8; 4];
+
+        checksum_bytes.as_mut()
+            .write_u32::<LittleEndian>(checksum)
+            .expect("Unable to convert checksum to bytes");
+
+        socket.write_all(&checksum_bytes)
+            .await
+            .expect("Failed to write checksum to socket");
+
+        return Ok((id, buf));
+    }
+
+}
+
+pub fn receive_chunk_len(addr:SocketAddr) -> usize {
+    let listener = TcpListener::bind(&addr).unwrap();
+    let mut chunk_len = 0;
+    for stream in listener.incoming() {
+        let mut stream = stream.unwrap();
+        let mut chunk_len_buf = [0u8;4];
+        loop {
+            match stream.read(&mut chunk_len_buf) {
+                Ok(n) => break,
+                Err(e) => eprintln!("Error while reading chunk len: {:?}", e),
+            }
+        }
+        chunk_len = decode_buffer_to_usize(chunk_len_buf.to_vec());
+        println!("Chunk length {}", chunk_len);
+        stream.write(&[0u8; 4]);
+        break
+    }
+
+    drop(listener);
+    chunk_len
 }
 
 pub async fn receiver(code: String, addrs:AddrPair) -> Result<()>{
     let addr = addrs.0;
+
+    let chunk_len = receive_chunk_len(addr);
     let listener = AsyncTcpListener::bind(&addr).await?;
 
     let mut futures = vec![];
+    let mut chunks= 0;
+
     loop {
         let (mut socket, _) = listener.accept().await?;
-        let fut = tokio::spawn(async move {
-            // first 4 bytes is for id and the other 4 bytes is to indicate length of
-            // the following vector
-            let mut comb_buf = vec![0;1024*16 + 4 + 4];
-            loop {
-                let n = socket
-                    .read(&mut comb_buf)
-                    .await
-                    .expect("failed to read data from socket");
-
-                let id_bytes:Vec<_> = comb_buf.drain(0..4).collect();
-                let id= decode_buffer_to_usize(id_bytes);
-                println!("Fragment ID {}", id);
-
-
-                let length_bytes:Vec<_> = comb_buf.drain(0..4).collect();
-                let length = decode_buffer_to_usize(length_bytes);
-
-                let mut buf:Vec<_> = comb_buf.drain(0..length).collect();
-                println!("Fragment Length {}", buf.len());
-
-                if n == 0 {
-                    return;
-                }
-
-                let mut hasher = Hasher::new();
-                hasher.update(&mut buf);
-                let checksum = hasher.finalize();
-                let mut checksum_bytes = [0u8; 4];
-
-                checksum_bytes.as_mut()
-                    .write_u32::<LittleEndian>(checksum)
-                    .expect("Unable to convert checksum to bytes");
-                socket.write_all(&checksum_bytes)
-                    .await
-                    .expect("Failed to write checksum to socket");
-            }
-        });
+        let fut = tokio::spawn(receive_chunk(socket));
         futures.push(fut);
+        chunks += 1;
+        println!("Chunks {}", chunks);
+        if chunks == chunk_len { break }
     }
+
+    let results = join_all(futures).await;
+    println!("after joinall");
+    for res in results {
+        println!("{:?}", res);
+    }
+
     Ok(())
 }
-
-
-
 
