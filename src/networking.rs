@@ -1,5 +1,5 @@
 use std::net::{TcpListener,TcpStream, SocketAddr, Shutdown};
-use std::io::{Read, Write, BufRead, BufReader};
+use std::io::{Read, BufRead, BufReader, BufWriter, Write};
 use std::io;
 
 use autodiscover_rs::{self, Method};
@@ -36,6 +36,69 @@ use std::sync::{Arc, Mutex};
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
 const CAP:usize = 1024 * 16;
+
+
+pub async fn receiver(code: String, addrs:AddrPair) -> Result<()>{
+    let addr = addrs.0;
+
+    let chunk_len = receive_chunk_len(addr);
+    let listener = AsyncTcpListener::bind(&addr).await?;
+
+    let mut futures = vec![];
+    let mut chunks= 0;
+
+    loop {
+        let (mut socket, _) = listener.accept().await?;
+        let fut = tokio::spawn(receive_chunk(socket));
+        futures.push(fut);
+        chunks += 1;
+        println!("Chunks {}", chunks);
+        if chunks == chunk_len { break }
+    }
+
+    let mut results = join_all(futures).await;
+    results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
+
+    let f = File::create("received.png").expect("Unable to create file");
+    let mut f = BufWriter::new(f);
+    for res in results {
+        f.write_all(&res.as_ref().unwrap().as_ref().unwrap().1).expect("Unable to write data");
+    }
+
+    Ok(())
+}
+
+
+pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
+    let file = File::open(&filename).unwrap();
+    let meta_data = file.metadata().unwrap();
+
+    let mut reader = BufReader::with_capacity(CAP, file);
+    let addr = addrs.1;
+
+    let mut futures = vec![];
+    let mut frag_id = 0 as usize;
+
+    send_chunk_len(get_chunk_len(meta_data, CAP), addr.clone());
+
+    loop {
+        let buffer = reader.fill_buf().unwrap().clone();
+        let length = buffer.clone().len();
+        if length == 0 { break }
+
+        println!("Read {} bytes", length);
+        let fut = task::spawn(send(frag_id, addr.clone(), buffer.to_vec()));
+        frag_id += 1;
+        futures.push(fut);
+        reader.consume(length);
+    }
+
+    let results = join_all(futures).await;
+    println!("After join all");
+
+    Ok(())
+}
+
 
 
 
@@ -77,38 +140,6 @@ async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, 
 
     println!("Fragment send completely finished");
     Ok((frag_id, not_corrupted))
-}
-
-
-
-pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
-    let file = File::open(&filename).unwrap();
-    let meta_data = file.metadata().unwrap();
-
-    let mut reader = BufReader::with_capacity(CAP, file);
-    let addr = addrs.1;
-
-    let mut futures = vec![];
-    let mut frag_id = 0 as usize;
-
-    send_chunk_len(get_chunk_len(meta_data, CAP), addr.clone());
-
-    loop {
-        let buffer = reader.fill_buf().unwrap().clone();
-        let length = buffer.clone().len();
-        if length == 0 { break }
-
-        println!("Read {} bytes", length);
-        let fut = task::spawn(send(frag_id, addr.clone(), buffer.to_vec()));
-        frag_id += 1;
-        futures.push(fut);
-        reader.consume(length);
-    }
-
-    let results = join_all(futures).await;
-    println!("After join all");
-
-    Ok(())
 }
 
 
@@ -154,30 +185,4 @@ async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
 
 }
 
-pub async fn receiver(code: String, addrs:AddrPair) -> Result<()>{
-    let addr = addrs.0;
-
-    let chunk_len = receive_chunk_len(addr);
-    let listener = AsyncTcpListener::bind(&addr).await?;
-
-    let mut futures = vec![];
-    let mut chunks= 0;
-
-    loop {
-        let (mut socket, _) = listener.accept().await?;
-        let fut = tokio::spawn(receive_chunk(socket));
-        futures.push(fut);
-        chunks += 1;
-        println!("Chunks {}", chunks);
-        if chunks == chunk_len { break }
-    }
-
-    let results = join_all(futures).await;
-    println!("after joinall");
-    for res in results {
-        println!("{:?}", res);
-    }
-
-    Ok(())
-}
 
