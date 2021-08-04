@@ -54,7 +54,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let mut results = join_all(futures).await;
     info!("Sorting all fragments");
     results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
-    
+
     info!("Writing data to filesystem");
     let f = File::create("received.mp4").expect("Unable to create file");
     let mut f = BufWriter::new(f);
@@ -99,8 +99,6 @@ pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
 
     Ok(())
 }
-
-
 
 
 async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, bool)> {
@@ -183,7 +181,6 @@ async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
 
         return Ok((id, buf));
     }
-
 }
 
 
