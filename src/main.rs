@@ -24,7 +24,7 @@ fn main() {
 
 
     let mut app = App::new("Elix")
-        .version("0.1.0")
+        .version("0.2.0")
         .author("Ian Kim <ian@ianmkim.com>")
         .about("A small, fast, and dirty file transfer utility")
         .subcommand(App::new("send")
