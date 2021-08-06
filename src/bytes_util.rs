@@ -13,9 +13,9 @@ pub fn encode_filename_to_string(filename:String) -> Vec<u8> {
     filename.into_bytes()
 }
 
-pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> Vec<u8> {
+pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> usize {
     let m_len = metadata.len();
-    encode_usize_as_vec((m_len as f32/ capacity as f32).ceil() as usize)
+    (m_len as f32/ capacity as f32).ceil() as usize
 }
 
 pub fn encode_usize_as_vec(usize_var: usize) -> Vec<u8> {

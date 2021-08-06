@@ -1,21 +1,27 @@
 [package]
 name = "elix"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2018"
 authors = ["Ian Kim <ian@ianmkim.com>"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+# networking & concurrency dependencies
 futures = {version="0.3.*"}
 tokio = {version="1.9.*", features=["full"]}
 tokio-util = {version="0.6.3", features=["full"]}
-clap = "3.0.0-beta.2"
+autodiscover-rs = "0.1.0"
 
+# CLI & UI dependencies
+clap = "3.0.0-beta.2"
+indicatif = "0.16.2"
+
+# debugging dependencies
 log = "0.4.*"
 env_logger = "0.7.*"
 
-autodiscover-rs = "0.1.0"
+# utilities
 byteorder = "1.4.3"
 crc32fast = "1.2.1"
 discv5="0.1.0-beta.9"
