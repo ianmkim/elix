@@ -32,7 +32,7 @@ pub fn listen_for_peer_response(file:String) {
     thread::spawn(move || {
         autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |s| {
             let rt = tokio::runtime::Runtime::new().unwrap();
-            match rt.block_on(sender(file.clone(), tcp_to_addr(s.unwrap()))) {
+            match rt.block_on(sender(file.clone(), tcp_to_addr(s.unwrap()), 1000)) {
                 Ok(_) => std::process::exit(0),
                 Err(e) => { info!("{:?}", e); std::process::exit(0); }
             }
@@ -70,8 +70,7 @@ pub fn send_file_name(filename:String, addr:SocketAddr){
     }
 }
 
-pub fn receive_file_name(addr:SocketAddr) -> String{
-    let listener = TcpListener::bind(&addr).unwrap();
+pub fn receive_file_name(listener:&TcpListener) -> String{
     let mut filename = String::new();
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
@@ -87,8 +86,6 @@ pub fn receive_file_name(addr:SocketAddr) -> String{
         stream.write(&[0u8; 4]).unwrap();
         break
     }
-
-    drop(listener);
     filename
 }
 
@@ -103,8 +100,7 @@ pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
     }
 }
 
-pub fn receive_chunk_len(addr:SocketAddr) -> usize {
-    let listener = TcpListener::bind(&addr).unwrap();
+pub fn receive_chunk_len(listener:&TcpListener) -> usize {
     let mut chunk_len = 0;
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
@@ -120,8 +116,6 @@ pub fn receive_chunk_len(addr:SocketAddr) -> usize {
         stream.write(&[0u8; 4]).unwrap();
         break
     }
-
-    drop(listener);
     chunk_len
 }
 

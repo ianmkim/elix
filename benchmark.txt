@@ -1,3 +1,4 @@
-Elix - 31 MB/s transferring 1.165GBs
+Elix 0.1.0 - 31 MB/s transferring 1.165GBs in 37.301s
+Elix 0.2.0 - 32 MB/s transferring 1.165GBs in 36.200s
 Croc - 177 MB/s transferring 1.165GBs
 

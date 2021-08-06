@@ -1,4 +1,4 @@
-use std::net::SocketAddr;
+use std::net::{SocketAddr, TcpListener};
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::io;
 
@@ -37,11 +37,12 @@ const CAP:usize = 1024 * 16;
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let addr = addrs.0;
 
-    let filename  = receive_file_name(addr);
-    let chunk_len = receive_chunk_len(addr);
-    println!("shouldn't print here");
-    let listener = AsyncTcpListener::bind(&addr).await?;
+    let listener = TcpListener::bind(&addr).unwrap();
+    let filename  = receive_file_name(&listener);
+    let chunk_len = receive_chunk_len(&listener);
+    drop(listener);
 
+    let listener = AsyncTcpListener::bind(&addr).await?;
     let mut futures = vec![];
     let mut chunks= 0;
 
@@ -59,7 +60,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     info!("Sorting all fragments");
     results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
 
-    info!("Writing data to filesystem");
+    info!("Writing data to filesystem ({})", filename);
     let f = File::create(filename).expect("Unable to create file");
     let mut f = BufWriter::new(f);
     let mut i = 0;
@@ -74,7 +75,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
 }
 
 
-pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
+pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Result<()>{
     let file = File::open(&filename).unwrap();
     let meta_data = file.metadata().unwrap();
 
@@ -97,6 +98,11 @@ pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
         frag_id += 1;
         futures.push(fut);
         reader.consume(length);
+
+        if futures.len() == thread_limit {
+            let _results = join_all(futures).await;
+            futures = Vec::new();
+        }
     }
 
     let _results = join_all(futures).await;
