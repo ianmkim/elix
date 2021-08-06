@@ -16,7 +16,9 @@ use std::fs::File;
 
 use crate::network_utils::{
     send_chunk_len,
-    receive_chunk_len,};
+    receive_chunk_len,
+    send_file_name,
+    receive_file_name,};
 
 use crate::bytes_util::{
     encode_usize_as_vec,
@@ -35,7 +37,9 @@ const CAP:usize = 1024 * 16;
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let addr = addrs.0;
 
+    let filename  = receive_file_name(addr);
     let chunk_len = receive_chunk_len(addr);
+    println!("shouldn't print here");
     let listener = AsyncTcpListener::bind(&addr).await?;
 
     let mut futures = vec![];
@@ -56,7 +60,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
 
     info!("Writing data to filesystem");
-    let f = File::create("received.mp4").expect("Unable to create file");
+    let f = File::create(filename).expect("Unable to create file");
     let mut f = BufWriter::new(f);
     let mut i = 0;
     let res_len = results.len();
@@ -80,6 +84,7 @@ pub async fn sender(filename:String, addrs:AddrPair) -> Result<()>{
     let mut futures = vec![];
     let mut frag_id = 0 as usize;
 
+    send_file_name(filename, addr.clone());
     send_chunk_len(get_chunk_len(meta_data, CAP), addr.clone());
 
     loop {

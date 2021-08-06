@@ -6,7 +6,12 @@ use autodiscover_rs::{self, Method};
 use std::io::Read;
 use std::io::Write;
 
-use crate::bytes_util::decode_buffer_to_usize;
+use crate::bytes_util::{
+    decode_buffer_to_usize,
+    decode_buffer_to_u32,
+    encode_filename_to_string,
+    decode_filename_to_string,
+};
 use log::info;
 
 type AddrPair = (SocketAddr, SocketAddr);
@@ -51,6 +56,40 @@ pub fn search_for_peer() -> Option<TcpStream> {
         return Some(stream.unwrap());
     }
     None
+}
+
+pub fn send_file_name(filename:String, addr:SocketAddr){
+    let mut stream = TcpStream::connect(addr).expect("Couldn't send file name");
+    let encoded = encode_filename_to_string(filename);
+    stream.write(&encoded).unwrap();
+    loop {
+        match stream.read(&mut [0u8;4]){
+            Ok(_) => break,
+            Err(e) => info!("Error while reading chunk len: {:?}", e),
+        }
+    }
+}
+
+pub fn receive_file_name(addr:SocketAddr) -> String{
+    let listener = TcpListener::bind(&addr).unwrap();
+    let mut filename = String::new();
+    for stream in listener.incoming() {
+        let mut stream = stream.unwrap();
+        let mut filename_buf = [0u8; 256];
+        loop {
+            match stream.read(&mut filename_buf){
+                Ok(_) => break,
+                Err(e) => info!("Error while reading filename {:?}", e),
+            }
+        }
+        filename = decode_filename_to_string(filename_buf.to_vec());
+        info!("Received filename: {}", filename);
+        stream.write(&[0u8; 4]).unwrap();
+        break
+    }
+
+    drop(listener);
+    filename
 }
 
 pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){

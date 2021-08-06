@@ -2,6 +2,16 @@ extern crate byteorder;
 use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::io::Cursor;
 use std::fs::Metadata;
+use std::str;
+
+pub fn decode_filename_to_string(filename_buf:Vec<u8>) -> String {
+    let res = str::from_utf8(&filename_buf).unwrap();
+    String::from(res.trim_matches(char::from(0)))
+}
+
+pub fn encode_filename_to_string(filename:String) -> Vec<u8> {
+    filename.into_bytes()
+}
 
 pub fn get_chunk_len(metadata:Metadata, capacity:usize) -> Vec<u8> {
     let m_len = metadata.len();
