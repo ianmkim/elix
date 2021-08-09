@@ -23,6 +23,7 @@ use crate::network_utils::{
     receive_file_name,};
 
 use crate::bytes_util::{
+    pad_until_len,
     encode_usize_as_vec,
     decode_buffer_to_u32,
     decode_buffer_to_usize,
@@ -33,7 +34,7 @@ use log::info;
 
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
-const CAP:usize = 1024 * 128;
+const CAP:usize = 1024 *512;
 
 
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
@@ -90,7 +91,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
         .progress_chars("=>-"));
 
     for res in results {
-        //info!("{:02}% written", (i as f32/res_len as f32) * 100f32);
+        info!("{:02}% written", (i as f32/res_len as f32) * 100f32);
         i+=CAP;
         pb.set_position(i as u64);
         f.write_all(&res.as_ref().unwrap().as_ref().unwrap().1).expect("Unable to write data");
@@ -123,14 +124,15 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .progress_chars("#>-"));
 
-
     loop {
         let buffer = reader.fill_buf().unwrap().clone();
         let length = buffer.clone().len();
         if length == 0 { break }
 
         info!("Read {} bytes", length);
-        let fut = task::spawn(send(frag_id, addr.clone(), buffer.to_vec()));
+        let converted_buff = buffer.to_vec();
+        info!("BUFFER VEC LEN {}", converted_buff.len());
+        let fut = task::spawn(send(frag_id, addr.clone(), converted_buff));
 
         downloaded += CAP as u64;
         pb.set_position(downloaded);
@@ -152,8 +154,12 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
 }
 
 
-async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, bool)> {
+async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>) -> Result<(usize, bool)> {
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
+    
+    if bytes.len() != CAP {
+        bytes = pad_until_len(bytes.clone(), CAP);
+    }
 
     let mut hasher = Hasher::new();
     hasher.update(bytes.clone().as_mut_slice());
@@ -196,10 +202,10 @@ async fn send(frag_id:usize, addr:SocketAddr, bytes: Vec<u8>) -> Result<(usize, 
 async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
     // first 4 bytes is for id and the other 4 bytes is to indicate length of
     // the following vector
-    let mut comb_buf = vec![0;CAP+ 4 + 4];
+    let mut comb_buf = vec![0;CAP + 4 + 4];
     loop {
         let n = socket
-            .read(&mut comb_buf)
+            .read_exact(&mut comb_buf)
             .await
             .expect("failed to read data from socket");
 

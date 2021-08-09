@@ -3,13 +3,34 @@ use byteorder::{LittleEndian, WriteBytesExt, ReadBytesExt};
 use std::io::Cursor;
 use std::fs::Metadata;
 use std::str;
+use log::info;
 
-pub fn decode_filename_to_string(filename_buf:Vec<u8>) -> String {
+extern crate rand;
+use rand::{thread_rng, Rng};
+use rand::distributions::Alphanumeric;
+
+pub fn pad_until_len(mut bytes:Vec<u8>, cap:usize) -> Vec<u8> {
+    let to_pad = cap - bytes.len();
+    for _ in 0..to_pad {bytes.push(0u8);}
+    bytes
+}
+
+pub fn generate_code() -> String {
+    let rand_string:String = thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(5)
+        .map(char::from)
+        .collect();
+    info!("Random code generated: {}", rand_string);
+    rand_string
+}
+
+pub fn decode_bytes_to_string(filename_buf:Vec<u8>) -> String {
     let res = str::from_utf8(&filename_buf).unwrap();
     String::from(res.trim_matches(char::from(0)))
 }
 
-pub fn encode_filename_to_string(filename:String) -> Vec<u8> {
+pub fn encode_string_as_bytes(filename:String) -> Vec<u8> {
     filename.into_bytes()
 }
 
