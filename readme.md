@@ -1,5 +1,4 @@
-![alt text](https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true)
-<img src="https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true" width="100px">
+<img src="https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true" width="300px">
 
 # Elix
 ## A small, fast, and dirty file transfer utility
