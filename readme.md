@@ -1,6 +1,7 @@
+# Elix
 <img src="https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true" width="300px">
 
-# Elix
+
 ## A small, fast, and dirty file transfer utility
 Elix is a memory safe file transfer utility similar to croc written in pure Rust. 
 
