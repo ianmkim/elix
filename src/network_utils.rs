@@ -39,10 +39,9 @@ pub fn listen_for_peer_response(file:String) {
                 Err(e) => { info!("{:?}", e); std::process::exit(0); }
             }
 
-            /*
             let mut s = s.unwrap();
             let mut code_buf= [0u8; 256];
-            loop { match s.read(&mut code_buf){
+            loop { match s.read_exact(&mut code_buf){
                     Ok(_) => break,
                     Err(e) => info!("Error while reading buffer {:?}", e),}}
             if decode_bytes_to_string(code_buf.to_vec()) == rand_string{
@@ -53,7 +52,6 @@ pub fn listen_for_peer_response(file:String) {
                     Err(e) => { info!("{:?}", e); std::process::exit(0); }
                 }
             } else {s.write(&[0u8]).unwrap();}
-            */
         }).unwrap();
     });
     loop {}
@@ -73,13 +71,11 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
     let code_buf = encode_string_as_bytes(code);
     while let Some(stream) = incoming.next() {
         return Some(stream.unwrap());
-        /*
         let mut stream = stream.unwrap();
         stream.write(&code_buf).unwrap();
         let mut resp_buf = [0u8;1];
         loop { match stream.read(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}
         if resp_buf[0] == 1u8 { return Some(stream); }
-        */
     }
     None
 }
