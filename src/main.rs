@@ -45,15 +45,19 @@ fn main() {
     if let Some(ref matches) = matches.subcommand_matches("send"){
         let filename = String::from(matches.value_of("filename").unwrap());
         listen_for_peer_response(filename);
-    } else if let Some(ref matches) = matches.subcommand_matches("take"){
+    } 
+
+    else if let Some(ref matches) = matches.subcommand_matches("take"){
         let code = String::from(matches.value_of("code").unwrap());
-        let stream = search_for_peer().unwrap();
+        let stream = search_for_peer(code.clone()).unwrap();
         let rt = tokio::runtime::Runtime::new().unwrap();
         match rt.block_on(receiver(code, tcp_to_addr(stream))) {
             Ok(_) => info!("Done."),
             Err(e) => info!("An Error Ocurred: {}", e),
         }
-    } else {
+    } 
+
+    else {
         app.print_long_help().unwrap();
     }
 }
