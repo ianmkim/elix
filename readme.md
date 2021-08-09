@@ -1,4 +1,4 @@
-![alt text](https://github.com/[parvusvox]/[elix]/blob/[master]/docs/elix-logo.jpg?raw=true
+![alt text](https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true)
 
 # Elix
 ## A small, fast, and dirty file transfer utility
