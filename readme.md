@@ -15,3 +15,5 @@ Elix in latin translates to a drain or a ditch; oftentimes carrying shit. This n
  - [ ] create a lib version
  - [ ] add compression to chunks
  - [ ] add encryption to chunks
+ - [ ] add archives through the -r or --recursive flag
+ - [ ] add speed viz in the cli
