@@ -1,6 +1,9 @@
 mod networking;
 mod network_utils;
 mod bytes_util;
+mod ui;
+
+use crate::ui::build_arg_parser;
 
 use crate::networking::*;
 use crate::network_utils::{
@@ -9,10 +12,7 @@ use crate::network_utils::{
     search_for_peer,
 };
 
-// cli arg parser
-use clap::{Arg, App};
 use log::info;
-
 use std::io::Write;
 
 fn main() {
@@ -23,23 +23,7 @@ fn main() {
     }).init();
 
 
-    let mut app = App::new("Elix")
-        .version("0.2.0")
-        .author("Ian Kim <ian@ianmkim.com>")
-        .about("A small, fast, and dirty file transfer utility")
-        .subcommand(App::new("send")
-            .about("Sends a file using Elix")
-            .arg(Arg::new("filename")
-                .index(1)
-                .required(true)
-                .about("A relative path to the file you want to send")))
-        .subcommand(App::new("take")
-            .about("Receive a file using Elix given a code")
-            .arg(Arg::new("code")
-                .index(1)
-                .required(true)
-                .about("A code that was either generated or given when sending a file")));
-
+    let mut app = build_arg_parser("0.3.0");
     let matches = app.clone().get_matches();
 
     if let Some(ref matches) = matches.subcommand_matches("send"){
@@ -49,6 +33,7 @@ fn main() {
 
     else if let Some(ref matches) = matches.subcommand_matches("take"){
         let code = String::from(matches.value_of("code").unwrap());
+        info!("Code from user: {:?}", code);
         let stream = search_for_peer(code.clone()).unwrap();
         let rt = tokio::runtime::Runtime::new().unwrap();
         match rt.block_on(receiver(code, tcp_to_addr(stream))) {

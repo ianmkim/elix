@@ -9,6 +9,8 @@ extern crate rand;
 use rand::{thread_rng, Rng};
 use rand::distributions::Alphanumeric;
 
+
+
 pub fn pad_until_len(mut bytes:Vec<u8>, cap:usize) -> Vec<u8> {
     let to_pad = cap - bytes.len();
     for _ in 0..to_pad {bytes.push(0u8);}

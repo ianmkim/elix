@@ -16,6 +16,8 @@ use log::info;
 
 type AddrPair = (SocketAddr, SocketAddr);
 
+const CODE_SIZE:usize = 256;
+
 /// Given a TcpStream object return a SocketAddr pair denoting local and peer address
 ///
 pub fn tcp_to_addr(stream:TcpStream) -> AddrPair {
@@ -33,18 +35,13 @@ pub fn listen_for_peer_response(file:String) {
     println!("To receive {} from another computer, run this command: \n\telix take {}", file,rand_string);
     thread::spawn(move || {
         autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |s| {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            match rt.block_on(sender(file.clone(), tcp_to_addr(s.unwrap()), 1000)) {
-                Ok(_) => std::process::exit(0),
-                Err(e) => { info!("{:?}", e); std::process::exit(0); }
-            }
-
             let mut s = s.unwrap();
-            let mut code_buf= [0u8; 256];
-            loop { match s.read_exact(&mut code_buf){
+            let mut code_buf= [0u8; CODE_SIZE];
+            loop { match s.read(&mut code_buf){
                     Ok(_) => break,
                     Err(e) => info!("Error while reading buffer {:?}", e),}}
-            if decode_bytes_to_string(code_buf.to_vec()) == rand_string{
+            let decoded_code = decode_bytes_to_string(code_buf.to_vec());
+            if decoded_code == rand_string{
                 s.write(&[1u8]).unwrap();
                 let rt = tokio::runtime::Runtime::new().unwrap();
                 match rt.block_on(sender(file.clone(), tcp_to_addr(s), 1000)) {
@@ -70,7 +67,6 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
     let mut incoming = listener.incoming();
     let code_buf = encode_string_as_bytes(code);
     while let Some(stream) = incoming.next() {
-        return Some(stream.unwrap());
         let mut stream = stream.unwrap();
         stream.write(&code_buf).unwrap();
         let mut resp_buf = [0u8;1];
@@ -96,7 +92,7 @@ pub fn receive_file_name(listener:&TcpListener) -> String{
     let mut filename = String::new();
     for stream in listener.incoming() {
         let mut stream = stream.unwrap();
-        let mut filename_buf = [0u8; 256];
+        let mut filename_buf = [0u8;CODE_SIZE];
         loop {
             match stream.read(&mut filename_buf){
                 Ok(_) => break,
