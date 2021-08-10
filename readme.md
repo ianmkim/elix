@@ -8,8 +8,8 @@ Elix is a memory safe file transfer utility similar to croc written in pure Rust
 Elix in latin translates to a drain or a ditch; oftentimes carrying shit. This naming denotes that elix is meant as a learning project and therefore is very unstable and prone to failure.
 
 ## Todos
- - [ ] variable chunk size
- - [ ] variable max socket opened
+ - [x] variable chunk size
+ - [x] variable max socket opened
  - [x] create a new logo
  - [x] write documentation
  - [ ] create a lib version
@@ -17,4 +17,4 @@ Elix in latin translates to a drain or a ditch; oftentimes carrying shit. This n
  - [ ] add encryption to chunks
  - [ ] add archives through the -r or --recursive flag
  - [ ] add speed viz in the cli
- - [ ] optimize socket thread spawn
+ - [ ] optimize socket thread join
