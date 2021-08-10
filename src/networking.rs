@@ -48,6 +48,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let mut futures = vec![];
     let mut chunks= 0;
 
+    /*
     let mut downloaded = 0u64;
     let total_size = (chunk_len * CAP) as u64;
 
@@ -56,13 +57,16 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .progress_chars("#>-"));
+    */
 
     loop {
         let (socket, _) = listener.accept().await?;
         let fut = tokio::spawn(receive_chunk(socket));
 
+        /*
         downloaded += CAP as u64;
         pb.set_position(downloaded);
+        */
 
         futures.push(fut);
         chunks += 1;
@@ -70,7 +74,9 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
         if chunks == chunk_len { break }
     }
 
+    /*
     pb.finish_with_message("downloaded");
+    */
 
     info!("Joining all threads");
     let mut results = join_all(futures).await;
@@ -83,20 +89,22 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let mut i = 0;
     let res_len = results.len();
 
+    /*
     println!("\nWriting file to disk...");
     let pb = ProgressBar::new( (res_len * CAP) as u64);
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.white} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .progress_chars("=>-"));
+    */
 
     for res in results {
         //info!("{:02}% written", (i as f32/res_len as f32) * 100f32);
         i+=CAP;
-        pb.set_position(i as u64);
+        //pb.set_position(i as u64);
         f.write_all(&res.as_ref().unwrap().as_ref().unwrap().1).expect("Unable to write data");
     }
 
-    pb.finish_with_message("Written");
+    //pb.finish_with_message("Written");
     Ok(())
 }
 
@@ -116,13 +124,14 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
     let chunk_len = get_chunk_len(meta_data, CAP);
     send_chunk_len(encode_usize_as_vec(chunk_len), addr.clone());
 
+    /*
     let mut downloaded = 0u64;
     let total_size = (chunk_len * CAP )as u64;
     let pb = ProgressBar::new( total_size );
     pb.set_style(ProgressStyle::default_bar()
         .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .progress_chars("#>-"));
-
+    */
 
     loop {
         let buffer = reader.fill_buf().unwrap().clone();
@@ -132,8 +141,10 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         info!("Read {} bytes", length);
         let fut = task::spawn(send(frag_id, addr.clone(), buffer.to_vec()));
 
+        /*
         downloaded += CAP as u64;
         pb.set_position(downloaded);
+        */
 
         frag_id += 1;
         futures.push(fut);
