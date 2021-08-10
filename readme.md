@@ -10,10 +10,11 @@ Elix in latin translates to a drain or a ditch; oftentimes carrying shit. This n
 ## Todos
  - [ ] variable chunk size
  - [ ] variable max socket opened
- - [ ] create a new logo
- - [ ] write documentation
+ - [x] create a new logo
+ - [x] write documentation
  - [ ] create a lib version
  - [ ] add compression to chunks
  - [ ] add encryption to chunks
  - [ ] add archives through the -r or --recursive flag
  - [ ] add speed viz in the cli
+ - [ ] optimize socket thread spawn

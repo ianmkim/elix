@@ -5,7 +5,7 @@ use std::io;
 use tokio::task;
 use tokio::net::TcpStream as AsyncTcpStream;
 use tokio::net::TcpListener as AsyncTcpListener;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncmeadExt, AsyncWriteExt};
 use futures::future::join_all;
 
 extern crate crc32fast;
@@ -34,21 +34,24 @@ use log::info;
 
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
-const CAP:usize = 1024 *512;
+/// CAP is the chunk capacity, default is 256KBs
+const CAP:usize = 1024 * 256;
 
-
+/// Given a code and a peer address, receives file chunks asynchronously
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     let addr = addrs.0;
 
+    // before any chunks are sent, metadata is received
     let listener = TcpListener::bind(&addr).unwrap();
-    let filename  = receive_file_name(&listener);
-    let chunk_len = receive_chunk_len(&listener);
+    let filename  = receive_file_name(&listener); // need to know to write to filesystem
+    let chunk_len = receive_chunk_len(&listener); // need to know for progress and when to stop receiving
     drop(listener);
 
     let listener = AsyncTcpListener::bind(&addr).await?;
     let mut futures = vec![];
     let mut chunks= 0;
 
+    // download progress
     let mut downloaded = 0u64;
     let total_size = (chunk_len * CAP) as u64;
 
@@ -59,9 +62,11 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
         .progress_chars("#>-"));
 
     loop {
+        // when new socket is opened, spawn a new receiving thread
         let (socket, _) = listener.accept().await?;
         let fut = tokio::spawn(receive_chunk(socket));
 
+        // update progress
         downloaded += CAP as u64;
         pb.set_position(downloaded);
 
@@ -73,9 +78,11 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
 
     pb.finish_with_message("downloaded");
 
+    // wait for all the threads to finish and sort the chunks based on their index
     info!("Joining all threads");
     let mut results = join_all(futures).await;
     info!("Sorting all fragments");
+    // TODO replace with async write to improve speed
     results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
 
     info!("Writing data to filesystem ({})", filename);
@@ -90,6 +97,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
         .template("{spinner:.white} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
         .progress_chars("=>-"));
 
+    // write file sequentially because async IO is not worth the trouble
     for res in results {
         info!("{:02}% written", (i as f32/res_len as f32) * 100f32);
         i+=CAP;
@@ -102,6 +110,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
 }
 
 
+/// Given filename, peer address, and thread limit, send files as chunks asynchronously
 pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Result<()>{
     let file = File::open(&filename).unwrap();
     let meta_data = file.metadata().unwrap();
@@ -125,6 +134,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         .progress_chars("#>-"));
 
     loop {
+        // fill the buffer up to capacity
         let buffer = reader.fill_buf().unwrap().clone();
         let length = buffer.clone().len();
         if length == 0 { break }
@@ -132,6 +142,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         info!("Read {} bytes", length);
         let converted_buff = buffer.to_vec();
         info!("BUFFER VEC LEN {}", converted_buff.len());
+        // start thread to send chunk
         let fut = task::spawn(send(frag_id, addr.clone(), converted_buff));
 
         downloaded += CAP as u64;
@@ -141,12 +152,15 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         futures.push(fut);
         reader.consume(length);
 
+        // block until all threads finish if thread limit reached
+        // most linux systems have a socket num limit of 1024
         if futures.len() == thread_limit {
             let _results = join_all(futures).await;
             futures = Vec::new();
         }
     }
 
+    // join all the remaining sending threads
     let _results = join_all(futures).await;
     info!("After join all");
 
@@ -154,6 +168,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
 }
 
 
+/// Send one chunk
 async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>) -> Result<(usize, bool)> {
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
     
@@ -199,6 +214,7 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>) -> Result<(usi
 }
 
 
+/// Receive one chunk
 async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
     // first 4 bytes is for id and the other 4 bytes is to indicate length of
     // the following vector
