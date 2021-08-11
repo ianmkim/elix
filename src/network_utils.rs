@@ -31,7 +31,7 @@ pub fn tcp_to_addr(stream:TcpStream) -> AddrPair {
 pub fn listen_for_peer_response(file:String) {
     // whatever port is available since the peer discovery will retrieve
     // the port information as well
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
     
     // generate unique code as a security measure
@@ -72,7 +72,7 @@ pub fn listen_for_peer_response(file:String) {
 /// Function searches for peers on the network using UDP multicasting
 /// Returns an Option enums of a TcpStream
 pub fn search_for_peer(code:String) -> Option<TcpStream> {
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
     // this thread will theoretically never
     thread::spawn(move || {
