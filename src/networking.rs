@@ -5,7 +5,7 @@ use std::io;
 use tokio::task;
 use tokio::net::TcpStream as AsyncTcpStream;
 use tokio::net::TcpListener as AsyncTcpListener;
-use tokio::io::{AsyncmeadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use futures::future::join_all;
 
 extern crate crc32fast;
@@ -35,7 +35,8 @@ use log::info;
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
 /// CAP is the chunk capacity, default is 256KBs
-const CAP:usize = 1024 * 256;
+const CAP:usize = 1024 * 512;
+const SPINNER_TEMPLATE:&str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} {binary_bytes_per_sec} ({eta})";
 
 /// Given a code and a peer address, receives file chunks asynchronously
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
@@ -58,7 +59,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     println!("Receiving data from sender...");
     let pb = ProgressBar::new( total_size );
     pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .template(SPINNER_TEMPLATE)
         .progress_chars("#>-"));
 
     loop {
@@ -94,7 +95,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
     println!("\nWriting file to disk...");
     let pb = ProgressBar::new( (res_len * CAP) as u64);
     pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.white} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .template(SPINNER_TEMPLATE)
         .progress_chars("=>-"));
 
     // write file sequentially because async IO is not worth the trouble
@@ -130,7 +131,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
     let total_size = (chunk_len * CAP )as u64;
     let pb = ProgressBar::new( total_size );
     pb.set_style(ProgressStyle::default_bar()
-        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+        .template(SPINNER_TEMPLATE)
         .progress_chars("#>-"));
 
     loop {

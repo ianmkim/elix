@@ -57,7 +57,7 @@ pub fn listen_for_peer_response(file:String) {
                 s.write(&[1u8]).unwrap();
                 // start the blocking sender
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                match rt.block_on(sender(file.clone(), tcp_to_addr(s), 1000)) {
+                match rt.block_on(sender(file.clone(), tcp_to_addr(s), 500)) {
                     // because there's no way to gracefully exit (unless I rewrite peer discovery)
                     // just exit once this one process finishes
                     Ok(_) => std::process::exit(0),
