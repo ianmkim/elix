@@ -33,6 +33,8 @@ pub fn listen_for_peer_response(file:String) {
     // the port information as well
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
+    info!("Listener is below");
+    info!("{:?}", listener.local_addr().unwrap());
     
     // generate unique code as a security measure
     let rand_string = generate_code();
