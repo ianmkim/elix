@@ -6,6 +6,7 @@ mod ui;
 use crate::ui::build_arg_parser;
 use std::net::{TcpListener};
 
+use local_ip_address::local_ip;
 use crate::networking::*;
 use crate::network_utils::{
     tcp_to_addr,
@@ -41,7 +42,7 @@ fn main() {
         info!("Code from user: {:?}", code);
         // blocing operation, will only return 1) when it discovers a peer
         // AND 2) the peer has the correct code
-        let mut listener = TcpListener::bind("0.0.0.0:0").unwrap();
+        let mut listener = TcpListener::bind(local_ip().unwrap().to_string() + ":0").unwrap();
         let stream = search_for_peer(code.clone(), listener).unwrap();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
