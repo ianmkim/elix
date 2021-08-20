@@ -33,6 +33,8 @@ pub fn listen_for_peer_response(file:String) {
     // the port information as well
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
+    info!("The Listener is below");
+    info!("{:?}", listener.local_addr().unwrap());
     
     // generate unique code as a security measure
     let rand_string = generate_code();
@@ -74,10 +76,13 @@ pub fn listen_for_peer_response(file:String) {
 pub fn search_for_peer(code:String) -> Option<TcpStream> {
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
-    // this thread will theoretically never
+    info!("Local addr: {:?}", listener.local_addr().unwrap());
+
+    // this thread will theoretically never end
     thread::spawn(move || {
         // when a peer is dicovered, do nothing because you have a seperate listener below
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |_s| {
+        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |s| {
+            info!("Discovered socket: {:?}", s.unwrap().peer_addr().unwrap());
         }).unwrap();
     });
 
@@ -88,6 +93,7 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
     // block until connection received
     while let Some(stream) = incoming.next() {
         let mut stream = stream.unwrap();
+        info!("Sender stream: {:?}", stream.peer_addr().unwrap());
         // send the code over to see if the current peer is the correct one
         stream.write(&code_buf).unwrap();
         let mut resp_buf = [0u8;1];
