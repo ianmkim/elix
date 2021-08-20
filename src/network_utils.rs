@@ -14,6 +14,8 @@ use crate::bytes_util::{
 };
 use log::info;
 
+use local_ip_address::local_ip;
+
 type AddrPair = (SocketAddr, SocketAddr);
 
 const CODE_SIZE:usize = 256;
@@ -31,7 +33,7 @@ pub fn tcp_to_addr(stream:TcpStream) -> AddrPair {
 pub fn listen_for_peer_response(file:String) {
     // whatever port is available since the peer discovery will retrieve
     // the port information as well
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+    let listener = TcpListener::bind(local_ip().unwrap().to_string() + ":0").unwrap();
     let socket = listener.local_addr().unwrap();
     info!("The Listener is below");
     info!("{:?}", listener.local_addr().unwrap());
@@ -109,7 +111,12 @@ pub fn listen_for_peer_response(file:String) {
 
 /// Function searches for peers on the network using UDP multicasting
 /// Returns an Option enums of a TcpStream
+<<<<<<< HEAD
 pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStream> {
+=======
+pub fn search_for_peer(code:String) -> Option<TcpStream> {
+    let listener = TcpListener::bind(local_ip().unwrap().to_string() + ":0").unwrap();
+>>>>>>> e0d35c31b210b459a58178101e7ff5eb6c11d389
     let socket = listener.local_addr().unwrap();
     info!("Local addr: {:?}", listener.local_addr().unwrap());
 

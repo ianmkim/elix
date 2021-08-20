@@ -12,6 +12,7 @@ futures = {version="0.3.*"}
 tokio = {version="1.9.*", features=["full"]}
 tokio-util = {version="0.6.3", features=["full"]}
 autodiscover-rs = {git="https://github.com/parvusvox/autodiscover-rs/"}
+local-ip-address = "0.4.4"
 
 # CLI & UI dependencies
 clap = "3.0.0-beta.2"
