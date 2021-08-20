@@ -42,7 +42,39 @@ pub fn listen_for_peer_response(file:String) {
     println!("To receive {} from another computer, run this command: \n\telix take {}", file,rand_string);
     thread::spawn(move || {
         // whenever a peer is discovered through UDP multicasting
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |s| {
+        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse::<SocketAddr>().unwrap()), |socket_addr| {
+            loop {
+                info!("{:?}", socket_addr.as_ref().unwrap());
+                match TcpStream::connect(socket_addr.as_ref().unwrap()){
+                    Ok(mut s) => {
+                        let mut code_buf= [0u8; CODE_SIZE];
+                        // block until you receive code from peer
+                        loop { match s.read(&mut code_buf){
+                                Ok(_) => break,
+                                Err(e) => info!("Error while reading buffer {:?}", e),}}
+                        info!("Read the code");
+                        // decode contents of the buffer to a code string
+                        let decoded_code = decode_bytes_to_string(code_buf.to_vec());
+                        // if the decoded code received from the peer is equal to
+                        // code generated on this machine (sender)
+                        if decoded_code == rand_string{
+                            // write an ack byte
+                            s.write(&[1u8]).unwrap();
+                            // start the blocking sender
+                            let rt = tokio::runtime::Runtime::new().unwrap();
+                            match rt.block_on(sender(file.clone(), tcp_to_addr(s), 500)) {
+                                // because there's no way to gracefully exit (unless I rewrite peer discovery)
+                                // just exit once this one process finishes
+                                Ok(_) => std::process::exit(0),
+                                Err(e) => { info!("{:?}", e); std::process::exit(0); }
+                            }
+                        } else {s.write(&[0u8]).unwrap();}
+                        break;
+                    },
+                    Err(_) => {}
+                }
+            }
+            /*
             // unwrap the socket and set up byte buffer to receive code
             if let Ok(mut s) = s{
                 let mut code_buf= [0u8; CODE_SIZE];
@@ -69,6 +101,7 @@ pub fn listen_for_peer_response(file:String) {
             } else if let Err(e) = s{
                 info!("Connection Error: {:?}", e);
             }
+            */
         }).unwrap();
     });
     loop {}
@@ -85,7 +118,7 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
     thread::spawn(move || {
         // when a peer is dicovered, do nothing because you have a seperate listener below
         autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |s| {
-            info!("Discovered socket: {:?}", s.unwrap().peer_addr().unwrap());
+            info!("Discovered socket: {:?}", s.unwrap());
         }).unwrap();
     });
 
@@ -99,6 +132,7 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
         info!("Sender stream: {:?}", stream.peer_addr().unwrap());
         // send the code over to see if the current peer is the correct one
         stream.write(&code_buf).unwrap();
+        info!("Sent the code");
         let mut resp_buf = [0u8;1];
         // block until acknowledgement received
         loop { match stream.read(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}

@@ -31,8 +31,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "autodiscover-rs"
 version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f37759ef22aa6d3e31a4a5900406319f6dbfb22d336d1b6442eec99eec90e292"
+source = "git+https://github.com/parvusvox/autodiscover-rs/#c0d4eb8d7d87ed42864cdfb0a5beb3b6dc63a40d"
 dependencies = [
  "log",
  "socket2",
