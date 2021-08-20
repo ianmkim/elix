@@ -106,13 +106,20 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
 
 /// Send the encoded filename
 pub fn send_file_name(filename:String, addr:SocketAddr){
-    let mut stream = TcpStream::connect(addr).expect("Couldn't send file name");
-    let encoded = encode_string_as_bytes(filename);
-    stream.write(&encoded).unwrap();
+    // keep trying to connect until the receiver has set up the server
     loop {
-        match stream.read(&mut [0u8;4]){
-            Ok(_) => break,
-            Err(e) => info!("Error while reading chunk len: {:?}", e),
+        match TcpStream::connect(addr){
+            Ok(mut stream) => {
+                let encoded = encode_string_as_bytes(filename.clone());
+                stream.write(&encoded).unwrap();
+                loop {
+                    match stream.read(&mut [0u8;4]){
+                        Ok(_) => break,
+                        Err(e) => info!("Error while reading chunk len: {:?}", e),
+                    }
+                }
+                break;
+            }, Err(_) => {}
         }
     }
 }

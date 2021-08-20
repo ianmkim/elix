@@ -40,7 +40,10 @@ const SPINNER_TEMPLATE:&str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.
 
 /// Given a code and a peer address, receives file chunks asynchronously
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
+    info!("RUNNNING RECEIVER");
     let addr = addrs.0;
+
+    info!("{:?}, {:?}", addrs.0, addrs.1);
 
     // before any chunks are sent, metadata is received
     let listener = TcpListener::bind(&addr).unwrap();
@@ -113,6 +116,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
 
 /// Given filename, peer address, and thread limit, send files as chunks asynchronously
 pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Result<()>{
+    info!("RUNNING SENDER");
     let file = File::open(&filename).unwrap();
     let meta_data = file.metadata().unwrap();
 
