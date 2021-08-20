@@ -26,7 +26,7 @@ fn main() {
     }).init();
 
 
-    let mut app = build_arg_parser("0.3.0");
+    let mut app = build_arg_parser("0.4.0");
     let matches = app.clone().get_matches();
 
     // send mode
