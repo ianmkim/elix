@@ -33,7 +33,7 @@ pub fn listen_for_peer_response(file:String) {
     // the port information as well
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
-    info!("Listener is below");
+    info!("The Listener is below");
     info!("{:?}", listener.local_addr().unwrap());
     
     // generate unique code as a security measure
@@ -79,10 +79,13 @@ pub fn listen_for_peer_response(file:String) {
 pub fn search_for_peer(code:String) -> Option<TcpStream> {
     let listener = TcpListener::bind("0.0.0.0:0").unwrap();
     let socket = listener.local_addr().unwrap();
-    // this thread will theoretically never
+    info!("Local addr: {:?}", listener.local_addr().unwrap());
+
+    // this thread will theoretically never end
     thread::spawn(move || {
         // when a peer is dicovered, do nothing because you have a seperate listener below
-        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |_s| {
+        autodiscover_rs::run(&socket, Method::Broadcast("255.255.255.255:1337".parse().unwrap()), |s| {
+            info!("Discovered socket: {:?}", s.unwrap().peer_addr().unwrap());
         }).unwrap();
     });
 
@@ -93,6 +96,7 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
     // block until connection received
     while let Some(stream) = incoming.next() {
         let mut stream = stream.unwrap();
+        info!("Sender stream: {:?}", stream.peer_addr().unwrap());
         // send the code over to see if the current peer is the correct one
         stream.write(&code_buf).unwrap();
         let mut resp_buf = [0u8;1];
@@ -105,13 +109,20 @@ pub fn search_for_peer(code:String) -> Option<TcpStream> {
 
 /// Send the encoded filename
 pub fn send_file_name(filename:String, addr:SocketAddr){
-    let mut stream = TcpStream::connect(addr).expect("Couldn't send file name");
-    let encoded = encode_string_as_bytes(filename);
-    stream.write(&encoded).unwrap();
+    // keep trying to connect until the receiver has set up the server
     loop {
-        match stream.read(&mut [0u8;4]){
-            Ok(_) => break,
-            Err(e) => info!("Error while reading chunk len: {:?}", e),
+        match TcpStream::connect(addr){
+            Ok(mut stream) => {
+                let encoded = encode_string_as_bytes(filename.clone());
+                stream.write(&encoded).unwrap();
+                loop {
+                    match stream.read(&mut [0u8;4]){
+                        Ok(_) => break,
+                        Err(e) => info!("Error while reading chunk len: {:?}", e),
+                    }
+                }
+                break;
+            }, Err(_) => {}
         }
     }
 }

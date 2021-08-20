@@ -3,7 +3,7 @@ use std::io::{Read, Write};
 use std::str::from_utf8;
 
 fn main() {
-    match TcpStream::connect("localhost:3333") {
+    match TcpStream::connect("192.168.1.249:3333") {
         Ok(mut stream) => {
             println!("Successfully connected to server in port 3333");
 
