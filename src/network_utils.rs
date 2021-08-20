@@ -73,8 +73,7 @@ pub fn listen_for_peer_response(file:String) {
 
 /// Function searches for peers on the network using UDP multicasting
 /// Returns an Option enums of a TcpStream
-pub fn search_for_peer(code:String) -> Option<TcpStream> {
-    let listener = TcpListener::bind("0.0.0.0:0").unwrap();
+pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStream> {
     let socket = listener.local_addr().unwrap();
     info!("Local addr: {:?}", listener.local_addr().unwrap());
 
