@@ -144,6 +144,7 @@ pub fn receive_file_name(listener:&TcpListener) -> String{
         let mut stream = stream.unwrap();
         let mut filename_buf = [0u8;CODE_SIZE];
         loop {
+            println!("running the receive file name");
             match stream.read_exact(&mut filename_buf){
                 Ok(_) => break,
                 Err(e) => info!("Error while reading filename {:?}", e),
