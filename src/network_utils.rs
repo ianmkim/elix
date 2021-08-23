@@ -52,7 +52,7 @@ pub fn listen_for_peer_response(file:String) {
                     Ok(mut s) => {
                         let mut code_buf = [0u8; CODE_SIZE];
                         // block until you receive code from peer
-                        loop { match s.read(&mut code_buf){
+                        loop { match s.read_exact(&mut code_buf){
                                 Ok(_) => break,
                                 Err(e) => info!("Error while reading buffer {:?}", e),}}
                         info!("Read the code");
@@ -109,7 +109,7 @@ pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStrea
         info!("Sent the code");
         let mut resp_buf = [0u8;1];
         // block until acknowledgement received
-        loop { match stream.read(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}
+        loop { match stream.read_exact(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}
         if resp_buf[0] == 1u8 { return Some(stream); }
     }
     None
