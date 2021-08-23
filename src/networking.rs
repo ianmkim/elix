@@ -31,6 +31,7 @@ use crate::bytes_util::{
 
 use log::info;
 
+const CODE_SIZE:usize = 256;
 
 type AddrPair = (SocketAddr, SocketAddr);
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync >>;
@@ -40,7 +41,7 @@ const SPINNER_TEMPLATE:&str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.
 
 /// Given a code and a peer address, receives file chunks asynchronously
 pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
-    info!("RUNNNING RECEIVER");
+    info!("RUNNING RECEIVER");
     let addr = addrs.0;
 
     info!("{:?}, {:?}", addrs.0, addrs.1);

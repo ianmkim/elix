@@ -11,6 +11,7 @@ use crate::bytes_util::{
     decode_buffer_to_usize,
     encode_string_as_bytes,
     decode_bytes_to_string,
+    pad_until_len,
 };
 use log::info;
 
@@ -49,7 +50,7 @@ pub fn listen_for_peer_response(file:String) {
                 info!("{:?}", socket_addr.as_ref().unwrap());
                 match TcpStream::connect(socket_addr.as_ref().unwrap()){
                     Ok(mut s) => {
-                        let mut code_buf= [0u8; CODE_SIZE];
+                        let mut code_buf = [0u8; CODE_SIZE];
                         // block until you receive code from peer
                         loop { match s.read(&mut code_buf){
                                 Ok(_) => break,
@@ -76,34 +77,6 @@ pub fn listen_for_peer_response(file:String) {
                     Err(_) => {}
                 }
             }
-            /*
-            // unwrap the socket and set up byte buffer to receive code
-            if let Ok(mut s) = s{
-                let mut code_buf= [0u8; CODE_SIZE];
-                // block until you receive code from peer
-                loop { match s.read(&mut code_buf){
-                        Ok(_) => break,
-                        Err(e) => info!("Error while reading buffer {:?}", e),}}
-                // decode contents of the buffer to a code string
-                let decoded_code = decode_bytes_to_string(code_buf.to_vec());
-                // if the decoded code received from the peer is equal to
-                // code generated on this machine (sender)
-                if decoded_code == rand_string{
-                    // write an ack byte
-                    s.write(&[1u8]).unwrap();
-                    // start the blocking sender
-                    let rt = tokio::runtime::Runtime::new().unwrap();
-                    match rt.block_on(sender(file.clone(), tcp_to_addr(s), 500)) {
-                        // because there's no way to gracefully exit (unless I rewrite peer discovery)
-                        // just exit once this one process finishes
-                        Ok(_) => std::process::exit(0),
-                        Err(e) => { info!("{:?}", e); std::process::exit(0); }
-                    }
-                } else {s.write(&[0u8]).unwrap();}
-            } else if let Err(e) = s{
-                info!("Connection Error: {:?}", e);
-            }
-            */
         }).unwrap();
     });
     loop {}
@@ -149,7 +122,8 @@ pub fn send_file_name(filename:String, addr:SocketAddr){
         match TcpStream::connect(addr){
             Ok(mut stream) => {
                 let encoded = encode_string_as_bytes(filename.clone());
-                stream.write(&encoded).unwrap();
+                let padded_filename = pad_until_len(encoded, CODE_SIZE);
+                stream.write(&padded_filename).unwrap();
                 loop {
                     match stream.read(&mut [0u8;4]){
                         Ok(_) => break,
@@ -169,7 +143,7 @@ pub fn receive_file_name(listener:&TcpListener) -> String{
         let mut stream = stream.unwrap();
         let mut filename_buf = [0u8;CODE_SIZE];
         loop {
-            match stream.read(&mut filename_buf){
+            match stream.read_exact(&mut filename_buf){
                 Ok(_) => break,
                 Err(e) => info!("Error while reading filename {:?}", e),
             }
