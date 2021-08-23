@@ -61,6 +61,7 @@ pub fn listen_for_peer_response(file:String) {
                         // if the decoded code received from the peer is equal to
                         // code generated on this machine (sender)
                         if decoded_code == rand_string{
+                            info!("Writing the ack byte");
                             // write an ack byte
                             s.write(&[1u8]).unwrap();
                             // start the blocking sender
@@ -99,7 +100,7 @@ pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStrea
     // start receiving from receiver
     let mut incoming = listener.incoming();
     // encode the code as a byte vector
-    let code_buf = encode_string_as_bytes(code);
+    let code_buf = pad_until_len(encode_string_as_bytes(code), CODE_SIZE);
     // block until connection received
     while let Some(stream) = incoming.next() {
         let mut stream = stream.unwrap();
