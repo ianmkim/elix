@@ -127,7 +127,7 @@ pub fn send_file_name(filename:String, addr:SocketAddr){
                 loop {
                     match stream.read_exact(&mut [0u8;4]){
                         Ok(_) => break,
-                        Err(e) => info!("Error while reading chunk len: {:?}", e),
+                        Err(e) => info!("Error while filename: {:?}", e),
                     }
                 }
                 break;
@@ -162,7 +162,7 @@ pub fn send_chunk_len(chunk_len:Vec<u8>, addr:SocketAddr){
     stream.write(&chunk_len).unwrap();
     loop { match stream.read_exact(&mut [0u8;4]) {
         Ok(_) => break,
-        Err(e) => info!("Error while reading chunk len: {:?}", e),
+        Err(e) => info!("Error while sending chunk len: {:?}", e),
     }}
 }
 
@@ -175,7 +175,7 @@ pub fn receive_chunk_len(listener:&TcpListener) -> usize {
         loop {
             match stream.read_exact(&mut chunk_len_buf) {
                 Ok(_) => break,
-                Err(e) => info!("Error while reading chunk len: {:?}", e),
+                Err(e) => info!("Error while receiving chunk len: {:?}", e),
             }
         }
         chunk_len = decode_buffer_to_usize(chunk_len_buf.to_vec());
