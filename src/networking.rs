@@ -16,6 +16,10 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::fs::File;
 
+use tokio::sync::Mutex;
+use std::sync::{Arc};
+use std::thread;
+
 use crate::network_utils::{
     send_chunk_len,
     receive_chunk_len,
@@ -126,6 +130,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
     let mut reader = BufReader::with_capacity(CAP, file);
     let addr = addrs.1;
 
+    let active_thread_count = Arc::new(Mutex::new(0u32));
     let mut futures = vec![];
     let mut frag_id = 0 as usize;
 
@@ -141,6 +146,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         .template(SPINNER_TEMPLATE)
         .progress_chars("#>-"));
 
+
     loop {
         // fill the buffer up to capacity
         let buffer = reader.fill_buf().unwrap().clone();
@@ -150,8 +156,10 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         info!("Read {} bytes", length);
         let converted_buff = buffer.to_vec();
         info!("BUFFER VEC LEN {}", converted_buff.len());
+
+        let counter = Arc::clone(&active_thread_count);
         // start thread to send chunk
-        let fut = task::spawn(send(frag_id, addr.clone(), converted_buff));
+        let fut = task::spawn(send(frag_id, addr.clone(), converted_buff, counter));
 
         downloaded += CAP as u64;
         pb.set_position(downloaded);
@@ -160,12 +168,19 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         futures.push(fut);
         reader.consume(length);
 
-        // block until all threads finish if thread limit reached
+
+        // block until new room for threads become available
+        // hotswapping is much faster than the waves appraoch
         // most linux systems have a socket num limit of 1024
+        while *active_thread_count.lock().await >= thread_limit as u32 {
+            info!("Number of active threads: {}", *active_thread_count.lock().await);
+        }
+        /*
         if futures.len() == thread_limit {
             let _results = join_all(futures).await;
             futures = Vec::new();
         }
+        */
     }
 
     // join all the remaining sending threads
@@ -177,7 +192,11 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
 
 
 /// Send one chunk
-async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>) -> Result<(usize, bool)> {
+async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>, counter:Arc<Mutex<u32>>) -> Result<(usize, bool)> {
+    let mut num = counter.lock().await;
+    *num += 1;
+    drop(num);
+
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
     
     if bytes.len() != CAP {
@@ -218,6 +237,11 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>) -> Result<(usi
     }
 
     info!("Fragment send completely finished");
+
+    let mut num = counter.lock().await;
+    *num -= 1;
+    drop(num);
+
     Ok((frag_id, not_corrupted))
 }
 

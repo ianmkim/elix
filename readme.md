@@ -30,9 +30,9 @@ elix take <code>
  - [x] variable max socket opened
  - [x] create a new logo
  - [x] write documentation
- - [ ] create a lib version
  - [ ] add compression to chunks
  - [ ] add encryption to chunks
  - [ ] add archives through the -r or --recursive flag
+ - [ ] add thread limit as argument
  - [x] add speed viz in the cli
- - [ ] optimize socket thread join
+ - [x] optimize socket thread join
