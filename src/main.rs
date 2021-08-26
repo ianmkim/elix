@@ -42,7 +42,7 @@ fn main() {
         info!("Code from user: {:?}", code);
         // blocing operation, will only return 1) when it discovers a peer
         // AND 2) the peer has the correct code
-        let mut listener = TcpListener::bind(local_ip().unwrap().to_string() + ":0").unwrap();
+        let listener = TcpListener::bind(local_ip().unwrap().to_string() + ":0").unwrap();
         let stream = search_for_peer(code.clone(), &listener).unwrap();
 
         let rt = tokio::runtime::Runtime::new().unwrap();
