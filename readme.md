@@ -1,5 +1,8 @@
 # Elix
-Elix is a memory safe file transfer utility similar to croc written in pure Rust. 
+Elix is a memory safe file transfer utility similar to croc written in pure Rust. Elix can currently only handle transferring files over local network. Encryption & compression coming soon.
+
+## Performance:
+Elix can transfer files at speeds comparable to croc prior to any optimizations. The current version transferred a 1.1GiB file in 53.20s on average compared to Croc's 52.33s. 
 
 <img src="https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true" width="300px">
 
