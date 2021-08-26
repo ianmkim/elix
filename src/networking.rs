@@ -40,20 +40,22 @@ const CAP:usize = 1024 * 512;
 const SPINNER_TEMPLATE:&str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} {binary_bytes_per_sec} ({eta})";
 
 /// Given a code and a peer address, receives file chunks asynchronously
-pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
+pub async fn receiver(_code: String, addrs:AddrPair, mut listener:TcpListener) -> Result<()>{
     info!("RUNNING RECEIVER");
     let addr = addrs.0;
 
     info!("{:?}, {:?}", addrs.0, addrs.1);
 
     // before any chunks are sent, metadata is received
-    let listener = TcpListener::bind(&addr).unwrap();
-    info!("BEFORE RUNNING RECEIVE_FILE_NAME");
+    // let listener = TcpListener::bind(&addr).unwrap();
+    info!("BEFORE RUNNING RECEIVE FILE NAME");
     let filename  = receive_file_name(&listener); // need to know to write to filesystem
     let chunk_len = receive_chunk_len(&listener); // need to know for progress and when to stop receiving
     drop(listener);
+    info!("AFTER LISTENER DROP");
 
     let listener = AsyncTcpListener::bind(&addr).await?;
+    info!("After ACPLISTENER");
     let mut futures = vec![];
     let mut chunks= 0;
 
