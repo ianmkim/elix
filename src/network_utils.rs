@@ -52,7 +52,7 @@ pub fn listen_for_peer_response(file:String) {
                     Ok(mut s) => {
                         let mut code_buf = [0u8; CODE_SIZE];
                         // block until you receive code from peer
-                        loop { match s.read(&mut code_buf){
+                        loop { match s.read_exact(&mut code_buf){
                                 Ok(_) => break,
                                 Err(e) => info!("Error while reading buffer {:?}", e),}}
                         info!("Read the code");
@@ -61,6 +61,7 @@ pub fn listen_for_peer_response(file:String) {
                         // if the decoded code received from the peer is equal to
                         // code generated on this machine (sender)
                         if decoded_code == rand_string{
+                            info!("Writing the ack byte");
                             // write an ack byte
                             s.write(&[1u8]).unwrap();
                             // start the blocking sender
@@ -84,7 +85,7 @@ pub fn listen_for_peer_response(file:String) {
 
 /// Function searches for peers on the network using UDP multicasting
 /// Returns an Option enums of a TcpStream
-pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStream> {
+pub fn search_for_peer(code:String, listener:&TcpListener) -> Option<TcpStream> {
     let socket = listener.local_addr().unwrap();
     info!("Local addr: {:?}", listener.local_addr().unwrap());
 
@@ -99,7 +100,7 @@ pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStrea
     // start receiving from receiver
     let mut incoming = listener.incoming();
     // encode the code as a byte vector
-    let code_buf = encode_string_as_bytes(code);
+    let code_buf = pad_until_len(encode_string_as_bytes(code), CODE_SIZE);
     // block until connection received
     while let Some(stream) = incoming.next() {
         let mut stream = stream.unwrap();
@@ -109,7 +110,7 @@ pub fn search_for_peer(code:String, mut listener:TcpListener) -> Option<TcpStrea
         info!("Sent the code");
         let mut resp_buf = [0u8;1];
         // block until acknowledgement received
-        loop { match stream.read(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}
+        loop { match stream.read_exact(&mut resp_buf) { Ok(_)=>break, Err(e)=>info!("Error while reading {:?}", e), }}
         if resp_buf[0] == 1u8 { return Some(stream); }
     }
     None
@@ -140,9 +141,11 @@ pub fn send_file_name(filename:String, addr:SocketAddr){
 pub fn receive_file_name(listener:&TcpListener) -> String{
     let mut filename = String::new();
     for stream in listener.incoming() {
+        info!("STREAM LOOP IN RECEIVE_FILE_NAME");
         let mut stream = stream.unwrap();
         let mut filename_buf = [0u8;CODE_SIZE];
         loop {
+            println!("running the receive file name");
             match stream.read_exact(&mut filename_buf){
                 Ok(_) => break,
                 Err(e) => info!("Error while reading filename {:?}", e),
