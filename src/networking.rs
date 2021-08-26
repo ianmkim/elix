@@ -48,6 +48,7 @@ pub async fn receiver(_code: String, addrs:AddrPair) -> Result<()>{
 
     // before any chunks are sent, metadata is received
     let listener = TcpListener::bind(&addr).unwrap();
+    info!("BEFORE RUNNING RECEIVE_FILE_NAME");
     let filename  = receive_file_name(&listener); // need to know to write to filesystem
     let chunk_len = receive_chunk_len(&listener); // need to know for progress and when to stop receiving
     drop(listener);
