@@ -141,6 +141,7 @@ pub fn send_file_name(filename:String, addr:SocketAddr){
 pub fn receive_file_name(listener:&TcpListener) -> String{
     let mut filename = String::new();
     for stream in listener.incoming() {
+        info!("STREAM LOOP IN RECEIVE_FILE_NAME");
         let mut stream = stream.unwrap();
         let mut filename_buf = [0u8;CODE_SIZE];
         loop {
