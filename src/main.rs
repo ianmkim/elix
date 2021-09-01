@@ -1,6 +1,7 @@
 mod networking;
 mod network_utils;
 mod bytes_util;
+mod compress;
 mod ui;
 
 use crate::ui::build_arg_parser;
@@ -17,6 +18,8 @@ use crate::network_utils::{
 use log::info;
 use std::io::Write;
 
+use crate::compress::zip_dir;
+
 fn main() {
     let start = std::time::Instant::now();
     // start logger with custom formatting to show time
@@ -29,11 +32,18 @@ fn main() {
     let mut app = build_arg_parser("0.4.0");
     let matches = app.clone().get_matches();
 
+    if let Some(ref matches) = matches.subcommand_matches("compress"){
+        let src = matches.value_of("src").unwrap();
+        let dst = matches.value_of("dst").unwrap();
+        zip_dir(src, dst);
+        return;
+    }
+
     // send mode
     if let Some(ref matches) = matches.subcommand_matches("send"){
         let filename = String::from(matches.value_of("filename").unwrap());
         listen_for_peer_response(filename);
-    } 
+    }
 
     // receive mode
     else if let Some(ref matches) = matches.subcommand_matches("take"){
@@ -51,7 +61,7 @@ fn main() {
             Ok(_) => info!("Done."),
             Err(e) => info!("BLOCK ON An Error Ocurred: {}", e),
         }
-    } 
+    }
 
     else {
         app.print_long_help().unwrap();

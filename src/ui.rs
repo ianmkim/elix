@@ -24,4 +24,12 @@ pub fn build_arg_parser(version:&str) -> App{
                 .index(1)
                 .required(true)
                 .about("A code that was given when sending a file")))
+        .subcommand(App::new("compress")
+            .about("Archive and compress a folder given a src directory and a destimation filename, mostly for benchmarking purposes")
+            .arg(Arg::new("src")
+                .index(1)
+                .required(true))
+            .arg(Arg::new("dst")
+                .index(2)
+                .required(true)))
 }

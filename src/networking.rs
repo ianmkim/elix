@@ -198,7 +198,7 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>, counter:Arc<Mu
     drop(num);
 
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
-    
+
     if bytes.len() != CAP {
         bytes = pad_until_len(bytes.clone(), CAP);
     }
@@ -287,5 +287,4 @@ async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
         return Ok((id, buf));
     }
 }
-
 
