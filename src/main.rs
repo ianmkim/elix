@@ -2,6 +2,7 @@ mod networking;
 mod network_utils;
 mod bytes_util;
 mod compress;
+mod decompress;
 mod ui;
 
 use crate::ui::build_arg_parser;
@@ -19,6 +20,7 @@ use log::info;
 use std::io::Write;
 
 use crate::compress::zip_dir;
+use crate::decompress::decompress;
 
 fn main() {
     let start = std::time::Instant::now();
@@ -36,6 +38,12 @@ fn main() {
         let src = matches.value_of("src").unwrap();
         let dst = matches.value_of("dst").unwrap();
         zip_dir(src, dst);
+        return;
+    }
+
+    if let Some(ref matches) = matches.subcommand_matches("decompress") {
+        let src = matches.value_of("src").unwrap();
+        decompress(src);
         return;
     }
 

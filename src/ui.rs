@@ -32,4 +32,9 @@ pub fn build_arg_parser(version:&str) -> App{
             .arg(Arg::new("dst")
                 .index(2)
                 .required(true)))
+        .subcommand(App::new("decompress")
+            .about("Decompress a zip archive given a src file, mostly for benchmarking purposes")
+            .arg(Arg::new("src")
+                .index(1)
+                .required(true)))
 }
