@@ -6,6 +6,7 @@ use tokio::task;
 use tokio::net::TcpStream as AsyncTcpStream;
 use tokio::net::TcpListener as AsyncTcpListener;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::sync::Mutex;
 use futures::future::join_all;
 
 extern crate crc32fast;
@@ -16,7 +17,6 @@ use indicatif::{ProgressBar, ProgressStyle};
 
 use std::fs::File;
 
-use tokio::sync::Mutex;
 use std::sync::{Arc};
 
 use crate::network_utils::{
@@ -68,10 +68,13 @@ pub async fn receiver(_code: String, addrs:AddrPair, listener:TcpListener) -> Re
         .template(SPINNER_TEMPLATE)
         .progress_chars("#>-"));
 
+    let out_file = Arc::new(Mutex::new(vec![0u8; total_size as usize]));
+
     loop {
         // when new socket is opened, spawn a new receiving thread
         let (socket, _) = listener.accept().await?;
-        let fut = tokio::spawn(receive_chunk(socket));
+        let f = Arc::clone(&out_file);
+        let fut = tokio::spawn(receive_chunk(socket, f));
 
         // update progress
         downloaded += CAP as u64;
@@ -105,13 +108,18 @@ pub async fn receiver(_code: String, addrs:AddrPair, listener:TcpListener) -> Re
         .template(SPINNER_TEMPLATE)
         .progress_chars("=>-"));
 
+
+    f.write_all(&*out_file.lock().await).expect("Unable to write data");
+
     // write file sequentially because async IO is not worth the trouble
+    /*
     for res in results {
         info!("{:02}% written", (i as f32/res_len as f32) * 100f32);
         i+=CAP;
         pb.set_position(i as u64);
         f.write_all(&res.as_ref().unwrap().as_ref().unwrap().1).expect("Unable to write data");
     }
+    */
 
     pb.finish_with_message("Written");
     Ok(())
@@ -138,7 +146,7 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
 
     let mut downloaded = 0u64;
     let total_size = (chunk_len * CAP )as u64;
-    let pb = ProgressBar::new( total_size );
+    let pb = ProgressBar::new( total_size.clone() );
     pb.set_style(ProgressStyle::default_bar()
         .template(SPINNER_TEMPLATE)
         .progress_chars("#>-"));
@@ -238,7 +246,7 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>, counter:Arc<Mu
 
 
 /// Receive one chunk
-async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
+async fn receive_chunk(mut socket:AsyncTcpStream, file:Arc<Mutex<Vec<u8>>>) -> Result<(usize, Vec<u8>)>  {
     // first 4 bytes is for id and the other 4 bytes is to indicate length of
     // the following vector
     let mut comb_buf = vec![0;CAP + 4 + 4];
@@ -275,6 +283,11 @@ async fn receive_chunk(mut socket:AsyncTcpStream) -> Result<(usize, Vec<u8>)>  {
             .await
             .expect("Failed to write checksum to socket");
 
+        let mut f = file.lock().await;
+        let cursor = id * CAP;
+        for (chunk_i, file_i) in ( cursor..cursor+CAP).enumerate(){
+            (*f)[file_i] = buf[chunk_i];
+        }
         return Ok((id, buf));
     }
 }
