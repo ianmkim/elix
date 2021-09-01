@@ -18,7 +18,6 @@ use std::fs::File;
 
 use tokio::sync::Mutex;
 use std::sync::{Arc};
-use std::thread;
 
 use crate::network_utils::{
     send_chunk_len,
@@ -44,10 +43,7 @@ const SPINNER_TEMPLATE:&str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.
 
 /// Given a code and a peer address, receives file chunks asynchronously
 pub async fn receiver(_code: String, addrs:AddrPair, listener:TcpListener) -> Result<()>{
-    info!("RUNNING RECEIVER");
     let addr = addrs.0;
-
-    info!("{:?}, {:?}", addrs.0, addrs.1);
 
     // before any chunks are sent, metadata is received
     // let listener = TcpListener::bind(&addr).unwrap();
@@ -94,6 +90,7 @@ pub async fn receiver(_code: String, addrs:AddrPair, listener:TcpListener) -> Re
     let mut results = join_all(futures).await;
     info!("Sorting all fragments");
     // TODO replace with async write to improve speed
+    // nevermind, async IO is bad idea
     results.sort_by_key(|k| k.as_ref().unwrap().as_ref().unwrap().0);
 
     info!("Writing data to filesystem ({})", filename);
@@ -168,19 +165,12 @@ pub async fn sender(filename:String, addrs:AddrPair, thread_limit:usize) -> Resu
         futures.push(fut);
         reader.consume(length);
 
-
         // block until new room for threads become available
         // hotswapping is much faster than the waves appraoch
         // most linux systems have a socket num limit of 1024
         while *active_thread_count.lock().await >= thread_limit as u32 {
             info!("Number of active threads: {}", *active_thread_count.lock().await);
         }
-        /*
-        if futures.len() == thread_limit {
-            let _results = join_all(futures).await;
-            futures = Vec::new();
-        }
-        */
     }
 
     // join all the remaining sending threads
@@ -198,7 +188,7 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>, counter:Arc<Mu
     drop(num);
 
     let mut stream = AsyncTcpStream::connect(addr).await.expect("Connection was closed unexpectedly");
-    
+
     if bytes.len() != CAP {
         bytes = pad_until_len(bytes.clone(), CAP);
     }
@@ -214,6 +204,7 @@ async fn send(frag_id:usize, addr:SocketAddr, mut bytes: Vec<u8>, counter:Arc<Mu
     stream.write_all(&res_vec.clone()).await?;
 
     let mut not_corrupted = false;
+
     loop {
         stream.readable().await?;
         let mut buffer = vec![0u8; 4];
