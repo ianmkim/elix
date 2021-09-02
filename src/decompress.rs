@@ -1,6 +1,10 @@
 use std::fs;
 use std::io;
 
+pub fn decompress_mem_bin(buffer: Vec<u8>) {
+
+}
+
 pub fn decompress(plain_fname: &str) {
     let fname = std::path::Path::new(plain_fname);
     let file = fs::File::open(&fname).unwrap();
