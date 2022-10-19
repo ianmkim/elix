@@ -4,8 +4,6 @@ Elix is a memory safe file transfer utility similar to croc written in pure Rust
 ## Performance:
 Elix can transfer files at speeds comparable to croc prior to any optimizations. The current version transferred a 1.1GiB file in 53.20s on average compared to Croc's 52.33s. 
 
-<img src="https://github.com/parvusvox/elix/blob/master/docs/elix-logo.jpg?raw=true" width="300px">
-
 ## A small, fast, and dirty file transfer utility
 Elix in latin translates to a drain or a ditch; oftentimes carrying shit. This naming denotes that elix is meant as a learning project and therefore is very unstable and prone to failure.
 
@@ -33,7 +31,7 @@ elix take <code>
  - [x] variable max socket opened
  - [x] create a new logo
  - [x] write documentation
- - [ ] add compression to chunks
+ - [x] add compression to chunks
  - [ ] add encryption to chunks
  - [ ] add archives through the -r or --recursive flag
  - [ ] add thread limit as argument
